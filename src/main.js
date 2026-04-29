@@ -5,7 +5,7 @@ import { createIcons, icons } from 'lucide';
 
 const DATA_URL = '/data/embedding-map.json';
 const DEFAULT_CAMERA = new THREE.Vector3(0, 7, 82);
-const BASE_POINT_SIZE = 0.135;
+const DEFAULT_POINT_SIZE = 0.14;
 
 const els = {
   host: document.querySelector('#scene-host'),
@@ -27,6 +27,7 @@ const els = {
   clearFocus: document.querySelector('#clear-focus'),
   pointSize: document.querySelector('#point-size'),
   glowSize: document.querySelector('#glow-size'),
+  neighborLinks: document.querySelector('#neighbor-links'),
 };
 
 createIcons({ icons });
@@ -44,16 +45,18 @@ let colors;
 let glowColors;
 let baseColors;
 let positions;
+const instanceDummy = new THREE.Object3D();
+const instanceColor = new THREE.Color();
 let activeCluster = null;
 let selectedIndex = null;
 let hoveredIndex = null;
 let motionEnabled = true;
+let neighborLinksEnabled = true;
 let cameraGoal = null;
 let targetGoal = null;
 
 const pointer = new THREE.Vector2();
 const raycaster = new THREE.Raycaster();
-raycaster.params.Points.threshold = 0.42;
 
 init().catch((error) => {
   console.error(error);
@@ -139,39 +142,41 @@ function buildPointCloud() {
   colors.set(baseColors);
   glowColors.set(baseColors.map((value) => value * 0.62));
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geometry.computeBoundingSphere();
+  const pointGeometry = new THREE.OctahedronGeometry(1, 0);
+  const glowGeometry = new THREE.IcosahedronGeometry(1, 1);
 
-  const glowGeometry = geometry.clone();
-  glowGeometry.setAttribute('color', new THREE.BufferAttribute(glowColors, 3));
-
-  points = new THREE.Points(
-    geometry,
-    new THREE.PointsMaterial({
-      size: BASE_POINT_SIZE,
+  points = new THREE.InstancedMesh(
+    pointGeometry,
+    new THREE.MeshBasicMaterial({
       vertexColors: true,
-      sizeAttenuation: true,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.92,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+      toneMapped: false,
     }),
+    pointCount,
   );
 
-  glowPoints = new THREE.Points(
+  glowPoints = new THREE.InstancedMesh(
     glowGeometry,
-    new THREE.PointsMaterial({
-      size: Number(els.glowSize.value),
+    new THREE.MeshBasicMaterial({
       vertexColors: true,
-      sizeAttenuation: true,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.055,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+      toneMapped: false,
     }),
+    pointCount,
   );
+  points.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  glowPoints.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  points.frustumCulled = false;
+  glowPoints.frustumCulled = false;
+  updateInstanceScale(points, Number(els.pointSize.value) || DEFAULT_POINT_SIZE);
+  updateInstanceScale(glowPoints, Number(els.glowSize.value));
+  updateInstanceColors();
 
   edgeLines = new THREE.LineSegments(
     createEmptyLineGeometry(),
@@ -238,11 +243,12 @@ function bindEvents() {
   els.clearFocus.addEventListener('click', clearFocus);
   els.toggleMotion.addEventListener('click', toggleMotion);
   els.pointSize.addEventListener('input', () => {
-    points.material.size = Number(els.pointSize.value);
+    updateInstanceScale(points, Number(els.pointSize.value));
   });
   els.glowSize.addEventListener('input', () => {
-    glowPoints.material.size = Number(els.glowSize.value);
+    updateInstanceScale(glowPoints, Number(els.glowSize.value));
   });
+  els.neighborLinks.addEventListener('change', toggleNeighborLinks);
   els.search.addEventListener('input', renderSearchResults);
   els.search.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -301,9 +307,10 @@ function onPointerMove(event) {
     return;
   }
 
-  hoveredIndex = hit.index;
+  hoveredIndex = hit.instanceId;
+  if (hoveredIndex === null || hoveredIndex === undefined) return;
   showTooltip(hoveredIndex, event.clientX, event.clientY);
-  updateEdges(hoveredIndex, true);
+  if (neighborLinksEnabled) updateEdges(hoveredIndex, true);
 }
 
 function showTooltip(index, x, y) {
@@ -320,7 +327,7 @@ function showTooltip(index, x, y) {
 function clearHover() {
   hoveredIndex = null;
   els.tooltip.classList.remove('is-visible');
-  if (selectedIndex !== null) {
+  if (neighborLinksEnabled && selectedIndex !== null) {
     updateEdges(selectedIndex, false);
   } else {
     updateEdges(null);
@@ -334,7 +341,11 @@ function selectPoint(index, frame = false) {
   setActiveCluster(point.c, false);
   updateDetails(index);
   updateSelectionMarker(index);
-  updateEdges(index, false);
+  if (neighborLinksEnabled) {
+    updateEdges(index, false);
+  } else {
+    updateEdges(null);
+  }
   if (frame) flyToPoint(index);
   els.search.value = point.w;
   renderSearchResults();
@@ -434,8 +445,31 @@ function recolorPoints() {
     glowColors[offset + 1] = Math.min(baseColors[offset + 1] * (isActive ? 0.72 : 0.04), 1);
     glowColors[offset + 2] = Math.min(baseColors[offset + 2] * (isActive ? 0.72 : 0.04), 1);
   }
-  points.geometry.attributes.color.needsUpdate = true;
-  glowPoints.geometry.attributes.color.needsUpdate = true;
+  updateInstanceColors();
+}
+
+function updateInstanceScale(mesh, scale) {
+  const safeScale = Math.max(Number(scale) || DEFAULT_POINT_SIZE, 0.001);
+  for (let index = 0; index < atlas.points.length; index += 1) {
+    const point = atlas.points[index];
+    instanceDummy.position.set(point.x, point.y, point.z);
+    instanceDummy.scale.setScalar(safeScale);
+    instanceDummy.updateMatrix();
+    mesh.setMatrixAt(index, instanceDummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+}
+
+function updateInstanceColors() {
+  for (let index = 0; index < atlas.points.length; index += 1) {
+    const offset = index * 3;
+    instanceColor.setRGB(colors[offset], colors[offset + 1], colors[offset + 2]);
+    points.setColorAt(index, instanceColor);
+    instanceColor.setRGB(glowColors[offset], glowColors[offset + 1], glowColors[offset + 2]);
+    glowPoints.setColorAt(index, instanceColor);
+  }
+  points.instanceColor.needsUpdate = true;
+  glowPoints.instanceColor.needsUpdate = true;
 }
 
 function renderSearchResults() {
@@ -512,6 +546,19 @@ function toggleMotion() {
   els.toggleMotion.setAttribute('title', motionEnabled ? 'Pause motion' : 'Resume motion');
   els.toggleMotion.innerHTML = `<i data-lucide="${motionEnabled ? 'pause' : 'play'}" aria-hidden="true"></i>`;
   createIcons({ icons });
+}
+
+function toggleNeighborLinks() {
+  neighborLinksEnabled = els.neighborLinks.checked;
+  if (!neighborLinksEnabled) {
+    updateEdges(null);
+    return;
+  }
+  if (hoveredIndex !== null) {
+    updateEdges(hoveredIndex, true);
+  } else if (selectedIndex !== null) {
+    updateEdges(selectedIndex, false);
+  }
 }
 
 function resize() {
