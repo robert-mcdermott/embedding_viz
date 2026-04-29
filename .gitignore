@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# JavaScript dependencies and build output
+node_modules/
+dist/
+
+# Local model and generated embedding caches
+.hf-home/
+.cache/
+
+# Local verification artifacts
+.playwright-cli/
+output/
