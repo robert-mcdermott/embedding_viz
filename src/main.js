@@ -6,12 +6,15 @@ import { createIcons, icons } from 'lucide';
 const DATA_URL = '/data/embedding-map.json';
 const DEFAULT_CAMERA = new THREE.Vector3(0, 7, 82);
 const DEFAULT_POINT_SIZE = 0.14;
+const DEFAULT_GLOW_SIZE = 0.44;
+const MAX_GLOW_SIZE = 1.25;
 
 const els = {
   host: document.querySelector('#scene-host'),
   loading: document.querySelector('#loading'),
   loadingStatus: document.querySelector('#loading-status'),
   tooltip: document.querySelector('#tooltip'),
+  selectedLabel: document.querySelector('#selected-label'),
   wordCount: document.querySelector('#word-count'),
   clusterCount: document.querySelector('#cluster-count'),
   rendererMode: document.querySelector('#renderer-mode'),
@@ -47,11 +50,17 @@ let baseColors;
 let positions;
 const instanceDummy = new THREE.Object3D();
 const instanceColor = new THREE.Color();
+const projectedPosition = new THREE.Vector3();
 let activeCluster = null;
 let selectedIndex = null;
 let hoveredIndex = null;
 let motionEnabled = true;
 let neighborLinksEnabled = true;
+let controlsInteracting = false;
+let selectedLabelActive = false;
+let pointScale = DEFAULT_POINT_SIZE;
+let glowScale = DEFAULT_GLOW_SIZE;
+let selectedRingScale = 1;
 let cameraGoal = null;
 let targetGoal = null;
 
@@ -99,6 +108,8 @@ async function init() {
   controls.autoRotateSpeed = 0.38;
   controls.minDistance = 4;
   controls.maxDistance = 170;
+  controls.addEventListener('start', handleControlsStart);
+  controls.addEventListener('end', handleControlsEnd);
 
   buildPointCloud();
   buildSceneGuides();
@@ -152,7 +163,7 @@ function buildPointCloud() {
       transparent: true,
       opacity: 0.92,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       toneMapped: false,
     }),
     pointCount,
@@ -174,8 +185,8 @@ function buildPointCloud() {
   glowPoints.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   points.frustumCulled = false;
   glowPoints.frustumCulled = false;
-  updateInstanceScale(points, Number(els.pointSize.value) || DEFAULT_POINT_SIZE);
-  updateInstanceScale(glowPoints, Number(els.glowSize.value));
+  updatePointScale(Number(els.pointSize.value) || DEFAULT_POINT_SIZE);
+  updateGlowScale(Number(els.glowSize.value));
   updateInstanceColors();
 
   edgeLines = new THREE.LineSegments(
@@ -191,13 +202,14 @@ function buildPointCloud() {
   edgeLines.visible = false;
 
   selectionMarker = new THREE.Mesh(
-    new THREE.SphereGeometry(0.48, 24, 16),
+    new THREE.TorusGeometry(0.36, 0.018, 8, 54),
     new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      toneMapped: false,
     }),
   );
 
@@ -243,10 +255,10 @@ function bindEvents() {
   els.clearFocus.addEventListener('click', clearFocus);
   els.toggleMotion.addEventListener('click', toggleMotion);
   els.pointSize.addEventListener('input', () => {
-    updateInstanceScale(points, Number(els.pointSize.value));
+    updatePointScale(Number(els.pointSize.value));
   });
   els.glowSize.addEventListener('input', () => {
-    updateInstanceScale(glowPoints, Number(els.glowSize.value));
+    updateGlowScale(Number(els.glowSize.value));
   });
   els.neighborLinks.addEventListener('change', toggleNeighborLinks);
   els.search.addEventListener('input', renderSearchResults);
@@ -372,8 +384,14 @@ function updateDetails(index) {
 
 function updateSelectionMarker(index) {
   const point = atlas.points[index];
+  const color = new THREE.Color(atlas.clusters[point.c]?.color ?? '#ffffff');
   selectionMarker.position.set(point.x, point.y, point.z);
-  selectionMarker.material.opacity = 0.78;
+  selectionMarker.material.color.copy(color);
+  selectionMarker.material.opacity = 0.86;
+  selectedRingScale = Math.max(0.72, pointScale * 4.4);
+  selectionMarker.scale.setScalar(selectedRingScale);
+  updatePointScale(pointScale);
+  updateSelectedLabel(index, color);
 }
 
 function updateEdges(index, isHover = false) {
@@ -448,12 +466,27 @@ function recolorPoints() {
   updateInstanceColors();
 }
 
+function updatePointScale(scale) {
+  pointScale = Math.max(Number(scale) || DEFAULT_POINT_SIZE, 0.001);
+  updateInstanceScale(points, pointScale);
+  if (selectedIndex !== null) {
+    selectedRingScale = Math.max(0.72, pointScale * 4.4);
+  }
+}
+
+function updateGlowScale(scale) {
+  glowScale = Math.max(Number(scale) || 0, 0);
+  glowPoints.visible = glowScale > 0;
+  if (glowScale > 0) updateInstanceScale(glowPoints, glowScale);
+}
+
 function updateInstanceScale(mesh, scale) {
   const safeScale = Math.max(Number(scale) || DEFAULT_POINT_SIZE, 0.001);
   for (let index = 0; index < atlas.points.length; index += 1) {
     const point = atlas.points[index];
+    const selectedBoost = mesh === points && selectedIndex === index ? 1.8 : 1;
     instanceDummy.position.set(point.x, point.y, point.z);
-    instanceDummy.scale.setScalar(safeScale);
+    instanceDummy.scale.setScalar(safeScale * selectedBoost);
     instanceDummy.updateMatrix();
     mesh.setMatrixAt(index, instanceDummy.matrix);
   }
@@ -470,6 +503,14 @@ function updateInstanceColors() {
   }
   points.instanceColor.needsUpdate = true;
   glowPoints.instanceColor.needsUpdate = true;
+}
+
+function updateSelectedLabel(index, color) {
+  selectedLabelActive = true;
+  els.selectedLabel.textContent = atlas.points[index].w;
+  els.selectedLabel.style.setProperty('--selected-color', color.getStyle());
+  els.selectedLabel.classList.add('is-visible');
+  updateSelectedLabelPosition();
 }
 
 function renderSearchResults() {
@@ -501,6 +542,7 @@ function renderSearchResults() {
 }
 
 function flyToPoint(index) {
+  controls.autoRotate = false;
   const point = atlas.points[index];
   const target = new THREE.Vector3(point.x, point.y, point.z);
   const direction = camera.position.clone().sub(controls.target).normalize();
@@ -518,6 +560,8 @@ function resetView() {
   highlightClusterButton(null);
   updateEdges(null);
   selectionMarker.material.opacity = 0;
+  selectedLabelActive = false;
+  els.selectedLabel.classList.remove('is-visible');
   els.detailWord.textContent = 'none';
   els.detailCluster.textContent = '...';
   els.neighborList.innerHTML = '';
@@ -532,6 +576,8 @@ function clearFocus() {
   highlightClusterButton(null);
   updateEdges(null);
   selectionMarker.material.opacity = 0;
+  selectedLabelActive = false;
+  els.selectedLabel.classList.remove('is-visible');
   els.search.value = '';
   renderSearchResults();
   els.detailWord.textContent = 'none';
@@ -541,11 +587,27 @@ function clearFocus() {
 
 function toggleMotion() {
   motionEnabled = !motionEnabled;
-  controls.autoRotate = motionEnabled;
+  controls.autoRotate = motionEnabled && !controlsInteracting && !cameraGoal;
   els.toggleMotion.setAttribute('aria-label', motionEnabled ? 'Pause motion' : 'Resume motion');
   els.toggleMotion.setAttribute('title', motionEnabled ? 'Pause motion' : 'Resume motion');
   els.toggleMotion.innerHTML = `<i data-lucide="${motionEnabled ? 'pause' : 'play'}" aria-hidden="true"></i>`;
   createIcons({ icons });
+}
+
+function handleControlsStart() {
+  controlsInteracting = true;
+  cancelCameraFlight();
+  controls.autoRotate = false;
+}
+
+function handleControlsEnd() {
+  controlsInteracting = false;
+  controls.autoRotate = motionEnabled && !cameraGoal;
+}
+
+function cancelCameraFlight() {
+  targetGoal = null;
+  cameraGoal = null;
 }
 
 function toggleNeighborLinks() {
@@ -569,8 +631,9 @@ function resize() {
 
 function animate(time) {
   if (points) {
-    const pulse = Math.sin(time * 0.0016) * 0.018;
-    glowPoints.material.opacity = motionEnabled ? 0.18 + pulse : 0.16;
+    const glowAmount = Math.min(glowScale / MAX_GLOW_SIZE, 1);
+    const pulse = Math.sin(time * 0.0016) * 0.012 * glowAmount;
+    glowPoints.material.opacity = glowScale > 0 ? 0.015 + glowAmount * 0.105 + pulse : 0;
     edgeLines.material.opacity = 0.66 + Math.sin(time * 0.002) * 0.08;
   }
 
@@ -580,16 +643,35 @@ function animate(time) {
     if (controls.target.distanceTo(targetGoal) < 0.02 && camera.position.distanceTo(cameraGoal) < 0.04) {
       targetGoal = null;
       cameraGoal = null;
+      controls.autoRotate = motionEnabled && !controlsInteracting;
     }
   }
 
   if (selectionMarker.material.opacity > 0) {
-    const scale = 1 + Math.sin(time * 0.004) * 0.16;
+    selectionMarker.lookAt(camera.position);
+    const scale = selectedRingScale * (1 + Math.sin(time * 0.004) * 0.045);
     selectionMarker.scale.setScalar(scale);
+    updateSelectedLabelPosition();
   }
 
   controls?.update();
   renderer.render(scene, camera);
+}
+
+function updateSelectedLabelPosition() {
+  if (selectedIndex === null || !selectedLabelActive) return;
+  const point = atlas.points[selectedIndex];
+  projectedPosition.set(point.x, point.y, point.z).project(camera);
+  const isVisible =
+    projectedPosition.z > -1 &&
+    projectedPosition.z < 1 &&
+    Math.abs(projectedPosition.x) < 1.25 &&
+    Math.abs(projectedPosition.y) < 1.25;
+  els.selectedLabel.classList.toggle('is-visible', isVisible);
+  if (!isVisible) return;
+  const x = (projectedPosition.x * 0.5 + 0.5) * window.innerWidth;
+  const y = (-projectedPosition.y * 0.5 + 0.5) * window.innerHeight;
+  els.selectedLabel.style.transform = `translate(${x}px, ${y}px) translate(-50%, -130%)`;
 }
 
 function setLoading(message) {

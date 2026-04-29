@@ -433,6 +433,33 @@ input[type="range"] {
   transition: opacity 140ms ease;
 }
 
+.selected-label {
+  position: fixed;
+  z-index: 6;
+  left: 0;
+  top: 0;
+  max-width: min(240px, calc(100vw - 28px));
+  pointer-events: none;
+  opacity: 0;
+  border: 1px solid color-mix(in srgb, var(--selected-color, #ffd166), transparent 30%);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(5, 5, 5, 0.78), rgba(5, 5, 5, 0.62)),
+    color-mix(in srgb, var(--selected-color, #ffd166), transparent 82%);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--selected-color, #ffd166), transparent 62%);
+  color: #fff8ed;
+  padding: 5px 9px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  transition: opacity 120ms ease;
+}
+
+.selected-label.is-visible {
+  opacity: 1;
+}
+
 .tooltip.is-visible {
   opacity: 1;
 }
