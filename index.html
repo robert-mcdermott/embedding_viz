@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#050505" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <title>Lost Time Embedding Atlas</title>
+    <title>Embedding Atlas</title>
   </head>
   <body>
     <main id="app">
@@ -13,12 +13,16 @@
 
       <section class="hud hud-primary" aria-label="Embedding summary">
         <div>
-          <p class="eyebrow">Proust Vocabulary</p>
-          <h1>Lost Time Embedding Atlas</h1>
+          <p id="summary-eyebrow" class="eyebrow">Embedding Atlas</p>
+          <h1 id="atlas-title">Embedding Atlas</h1>
+          <label class="dataset-control">
+            <span>Dataset</span>
+            <select id="dataset-select" aria-label="Dataset"></select>
+          </label>
         </div>
         <dl class="metrics">
           <div>
-            <dt>Words</dt>
+            <dt id="item-count-label">Items</dt>
             <dd id="word-count">...</dd>
           </div>
           <div>
@@ -32,10 +36,10 @@
         </dl>
       </section>
 
-      <section class="search-panel" aria-label="Word search">
+      <section class="search-panel" aria-label="Embedding search">
         <label class="search-box">
           <i data-lucide="search" aria-hidden="true"></i>
-          <input id="word-search" type="search" autocomplete="off" spellcheck="false" placeholder="Find a word" />
+          <input id="word-search" type="search" autocomplete="off" spellcheck="false" placeholder="Find text" />
         </label>
         <div id="search-results" class="search-results" role="listbox"></div>
       </section>
@@ -47,7 +51,7 @@
         <button id="toggle-motion" class="icon-button" type="button" aria-label="Pause motion" title="Pause motion">
           <i data-lucide="pause" aria-hidden="true"></i>
         </button>
-        <button id="fit-selection" class="icon-button" type="button" aria-label="Frame selected word" title="Frame selected word">
+        <button id="fit-selection" class="icon-button" type="button" aria-label="Frame selected item" title="Frame selected item">
           <i data-lucide="locate-fixed" aria-hidden="true"></i>
         </button>
         <button id="clear-focus" class="icon-button" type="button" aria-label="Clear focus" title="Clear focus">
@@ -82,10 +86,10 @@
       </aside>
 
       <section id="detail-panel" class="detail-panel" aria-live="polite">
-        <p class="eyebrow">Selected Word</p>
+        <p id="selected-kind-label" class="eyebrow">Selected Item</p>
         <h2 id="detail-word">none</h2>
         <p id="detail-cluster" class="cluster-name">Cluster: ...</p>
-        <p class="neighbor-heading">Nearest related words</p>
+        <p id="neighbor-heading" class="neighbor-heading">Nearest related items</p>
         <div id="neighbor-list" class="neighbor-list"></div>
       </section>
 
@@ -95,7 +99,7 @@
         <div class="loader-ring"></div>
         <div>
           <p>Building atlas</p>
-          <span id="loading-status">Loading embedding-map.json</span>
+          <span id="loading-status">Loading dataset</span>
         </div>
       </div>
     </main>

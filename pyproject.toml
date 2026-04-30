@@ -1,10 +1,11 @@
 [project]
 name = "embedding-viz"
 version = "0.1.0"
-description = "Add your description here"
+description = "Build WebGPU-ready semantic embedding atlases from words or sentences."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "pypdf>=6.10.2",
     "scikit-learn>=1.8.0",
     "sentence-transformers>=5.4.1",
     "umap-learn>=0.5.12",

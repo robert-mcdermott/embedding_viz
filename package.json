@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:data": "uv run scripts/build_embeddings.py",
+    "build:data": "npm run build:sentences",
+    "build:words": "uv run scripts/build_embeddings.py --unit words --input In-Search-of-Lost-Time-words.txt --output public/data/embedding-map.json --title \"Lost Time Words\"",
+    "build:sentences": "uv run scripts/build_embeddings.py --unit sentences --input In-Search-of-Lost-Time.pdf --output public/data/lost-time-sentences.json --title \"Lost Time Sentences\" --start-at \"For a long time I used to go to bed early.\" --clusters 32 --batch-size 128",
+    "build:all-data": "npm run build:words && npm run build:sentences",
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1"
   },
-  "description": "A WebGPU-first 3D semantic embedding atlas for the vocabulary of In Search of Lost Time.",
+  "description": "A WebGPU-first 3D semantic embedding atlas for words or sentences.",
   "dependencies": {
     "lucide": "^1.14.0",
     "three": "^0.184.0"

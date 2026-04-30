@@ -3,7 +3,14 @@ import * as THREE from 'three/webgpu';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createIcons, icons } from 'lucide';
 
-const DATA_URL = '/data/embedding-map.json';
+const MANIFEST_URL = '/data/manifest.json';
+const FALLBACK_DATASET = {
+  id: 'default',
+  label: 'Embedding Map',
+  url: '/data/embedding-map.json',
+  unit: 'words',
+  default: true,
+};
 const DEFAULT_CAMERA = new THREE.Vector3(0, 7, 82);
 const DEFAULT_POINT_SIZE = 0.14;
 const DEFAULT_GLOW_SIZE = 0.44;
@@ -15,6 +22,10 @@ const els = {
   loadingStatus: document.querySelector('#loading-status'),
   tooltip: document.querySelector('#tooltip'),
   selectedLabel: document.querySelector('#selected-label'),
+  summaryEyebrow: document.querySelector('#summary-eyebrow'),
+  atlasTitle: document.querySelector('#atlas-title'),
+  datasetSelect: document.querySelector('#dataset-select'),
+  itemCountLabel: document.querySelector('#item-count-label'),
   wordCount: document.querySelector('#word-count'),
   clusterCount: document.querySelector('#cluster-count'),
   rendererMode: document.querySelector('#renderer-mode'),
@@ -22,7 +33,9 @@ const els = {
   searchResults: document.querySelector('#search-results'),
   clusterList: document.querySelector('#cluster-list'),
   detailWord: document.querySelector('#detail-word'),
+  selectedKindLabel: document.querySelector('#selected-kind-label'),
   detailCluster: document.querySelector('#detail-cluster'),
+  neighborHeading: document.querySelector('#neighbor-heading'),
   neighborList: document.querySelector('#neighbor-list'),
   resetView: document.querySelector('#reset-view'),
   toggleMotion: document.querySelector('#toggle-motion'),
@@ -44,6 +57,8 @@ let glowPoints;
 let edgeLines;
 let selectionMarker;
 let atlas;
+let datasets = [];
+let activeDataset = FALLBACK_DATASET;
 let colors;
 let glowColors;
 let baseColors;
@@ -74,8 +89,13 @@ init().catch((error) => {
 });
 
 async function init() {
-  setLoading('Loading embedding-map.json');
-  atlas = await fetchAtlas();
+  setLoading('Loading dataset manifest');
+  datasets = await fetchDatasetManifest();
+  activeDataset = selectInitialDataset(datasets);
+  populateDatasetSelect();
+
+  setLoading(`Loading ${activeDataset.label}`);
+  atlas = await fetchAtlas(activeDataset.url);
 
   setLoading('Starting WebGPU renderer');
   scene = new THREE.Scene();
@@ -115,16 +135,54 @@ async function init() {
   buildSceneGuides();
   buildClusterPanel();
   updateStats();
+  updateAtlasCopy();
   bindEvents();
   setRendererMode();
   setLoading('Rendering');
   requestAnimationFrame(() => els.loading.classList.add('is-hidden'));
 }
 
-async function fetchAtlas() {
-  const response = await fetch(DATA_URL);
+async function fetchDatasetManifest() {
+  try {
+    const response = await fetch(MANIFEST_URL);
+    if (!response.ok) return [FALLBACK_DATASET];
+    const manifest = await response.json();
+    return Array.isArray(manifest.datasets) && manifest.datasets.length ? manifest.datasets : [FALLBACK_DATASET];
+  } catch {
+    return [FALLBACK_DATASET];
+  }
+}
+
+function selectInitialDataset(availableDatasets) {
+  const requested = new URLSearchParams(window.location.search).get('dataset');
+  return (
+    availableDatasets.find((dataset) => dataset.id === requested) ??
+    availableDatasets.find((dataset) => dataset.default) ??
+    availableDatasets[0] ??
+    FALLBACK_DATASET
+  );
+}
+
+function populateDatasetSelect() {
+  els.datasetSelect.innerHTML = '';
+  for (const dataset of datasets) {
+    const option = document.createElement('option');
+    option.value = dataset.id;
+    option.textContent = dataset.label;
+    option.selected = dataset.id === activeDataset.id;
+    els.datasetSelect.appendChild(option);
+  }
+  els.datasetSelect.addEventListener('change', () => {
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set('dataset', els.datasetSelect.value);
+    window.location.href = nextUrl.toString();
+  });
+}
+
+async function fetchAtlas(url) {
+  const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Missing ${DATA_URL}. Run npm run build:data first.`);
+    throw new Error(`Missing ${url}. Run npm run build:data first.`);
   }
   return response.json();
 }
@@ -288,7 +346,7 @@ function buildClusterPanel() {
         <span class="cluster-swatch" style="--cluster-color:${cluster.color}"></span>
         <span class="cluster-copy">
           <strong>${escapeHtml(cluster.label)}</strong>
-          <small>${cluster.count.toLocaleString()} words</small>
+          <small>${cluster.count.toLocaleString()} ${unitLabel(true)}</small>
         </span>
       `;
       button.addEventListener('click', () => setActiveCluster(cluster.id));
@@ -300,6 +358,21 @@ function buildClusterPanel() {
 function updateStats() {
   els.wordCount.textContent = atlas.meta.count.toLocaleString();
   els.clusterCount.textContent = atlas.clusters.length.toLocaleString();
+}
+
+function updateAtlasCopy() {
+  const singular = unitLabel();
+  const plural = unitLabel(true);
+  const title = atlas.meta.title || activeDataset.label || 'Embedding Atlas';
+  els.summaryEyebrow.textContent = `${capitalize(plural)} Embedding Atlas`;
+  els.atlasTitle.textContent = title;
+  document.title = title;
+  els.itemCountLabel.textContent = capitalize(plural);
+  els.search.placeholder = `Find a ${singular}`;
+  els.selectedKindLabel.textContent = `Selected ${capitalize(singular)}`;
+  els.neighborHeading.textContent = `Nearest related ${plural}`;
+  document.body.dataset.unit = atlas.meta.unit || activeDataset.unit || 'words';
+  document.querySelector('#detail-panel').classList.toggle('is-sentence', unitLabel() === 'sentence');
 }
 
 function setRendererMode() {
@@ -328,8 +401,9 @@ function onPointerMove(event) {
 function showTooltip(index, x, y) {
   const point = atlas.points[index];
   const cluster = atlas.clusters[point.c];
+  const labelLimit = unitLabel() === 'sentence' ? 180 : 48;
   els.tooltip.innerHTML = `
-    <strong>${escapeHtml(point.w)}</strong>
+    <strong>${escapeHtml(shortText(itemText(point), labelLimit))}</strong>
     <span>${escapeHtml(cluster?.label ?? `Cluster ${point.c + 1}`)}</span>
   `;
   els.tooltip.style.transform = `translate(${x + 16}px, ${y + 16}px)`;
@@ -359,7 +433,7 @@ function selectPoint(index, frame = false) {
     updateEdges(null);
   }
   if (frame) flyToPoint(index);
-  els.search.value = point.w;
+  els.search.value = unitLabel() === 'word' ? itemText(point) : '';
   renderSearchResults();
   if (cluster) highlightClusterButton(cluster.id);
 }
@@ -367,16 +441,18 @@ function selectPoint(index, frame = false) {
 function updateDetails(index) {
   const point = atlas.points[index];
   const cluster = atlas.clusters[point.c];
-  els.detailWord.textContent = point.w;
+  els.detailWord.textContent = itemText(point);
   els.detailCluster.textContent = `Cluster: ${cluster ? cluster.label : `Cluster ${point.c + 1}`}`;
   els.neighborList.innerHTML = '';
 
   for (const [neighborIndex, weight] of point.n.slice(0, 5)) {
     const neighbor = atlas.points[neighborIndex];
+    const neighborText = itemText(neighbor);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'neighbor-chip';
-    button.textContent = `${neighbor.w} ${(weight * 100).toFixed(0)}`;
+    button.textContent = `${shortText(neighborText, unitLabel() === 'sentence' ? 78 : 34)} ${(weight * 100).toFixed(0)}`;
+    button.title = neighborText;
     button.addEventListener('click', () => selectPoint(neighborIndex, true));
     els.neighborList.appendChild(button);
   }
@@ -503,7 +579,7 @@ function updateInstanceColors() {
 
 function updateSelectedLabel(index, color) {
   selectedLabelActive = true;
-  els.selectedLabel.textContent = atlas.points[index].w;
+  els.selectedLabel.textContent = shortText(itemText(atlas.points[index]), unitLabel() === 'sentence' ? 90 : 40);
   els.selectedLabel.style.setProperty('--selected-color', color.getStyle());
   els.selectedLabel.classList.add('is-visible');
   updateSelectedLabelPosition();
@@ -512,25 +588,26 @@ function updateSelectedLabel(index, color) {
 function renderSearchResults() {
   const query = els.search.value.trim().toLocaleLowerCase();
   els.searchResults.innerHTML = '';
-  if (!query || (selectedIndex !== null && atlas.points[selectedIndex]?.w.toLocaleLowerCase() === query)) {
+  if (!query || (selectedIndex !== null && itemText(atlas.points[selectedIndex]).toLocaleLowerCase() === query)) {
     els.searchResults.classList.remove('is-visible');
     return;
   }
 
   const matches = [];
   for (let index = 0; index < atlas.points.length && matches.length < 9; index += 1) {
-    const word = atlas.points[index].w;
-    const lower = word.toLocaleLowerCase();
+    const text = itemText(atlas.points[index]);
+    const lower = text.toLocaleLowerCase();
     if (lower === query || lower.startsWith(query) || lower.includes(query)) {
-      matches.push([index, word]);
+      matches.push([index, text]);
     }
   }
 
-  for (const [index, word] of matches) {
+  for (const [index, text] of matches) {
     const button = document.createElement('button');
     button.type = 'button';
     button.dataset.index = String(index);
-    button.textContent = word;
+    button.textContent = shortText(text, unitLabel() === 'sentence' ? 140 : 60);
+    button.title = text;
     button.addEventListener('click', () => selectPoint(index, true));
     els.searchResults.appendChild(button);
   }
@@ -672,6 +749,27 @@ function updateSelectedLabelPosition() {
 
 function setLoading(message) {
   els.loadingStatus.textContent = message;
+}
+
+function unitLabel(plural = false) {
+  const unit = atlas?.meta?.unit || activeDataset.unit || 'words';
+  if (unit === 'sentences') return plural ? 'sentences' : 'sentence';
+  if (unit === 'words') return plural ? 'words' : 'word';
+  return plural ? 'items' : 'item';
+}
+
+function itemText(point) {
+  return String(point?.w ?? point?.text ?? point?.label ?? '');
+}
+
+function shortText(value, limit) {
+  const text = String(value).replace(/\s+/g, ' ').trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, Math.max(0, limit - 1)).trim()}...`;
+}
+
+function capitalize(value) {
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
 
 function escapeHtml(value) {

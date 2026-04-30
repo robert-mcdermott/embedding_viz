@@ -93,6 +93,34 @@ h1 {
   font-weight: 750;
 }
 
+.dataset-control {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.dataset-control span {
+  color: rgba(246, 241, 232, 0.58);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.dataset-control select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(246, 241, 232, 0.13);
+  border-radius: 7px;
+  background: rgba(246, 241, 232, 0.075);
+  color: #fff8ed;
+  padding: 8px 10px;
+  outline: 0;
+}
+
+.dataset-control select:focus-visible {
+  outline: 2px solid #65a3ff;
+  outline-offset: 2px;
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -387,6 +415,14 @@ input[type="range"] {
   font-size: 1.35rem;
   line-height: 1.15;
   overflow-wrap: anywhere;
+}
+
+.detail-panel.is-sentence h2 {
+  max-height: 150px;
+  overflow: auto;
+  padding-right: 4px;
+  font-size: 0.92rem;
+  line-height: 1.35;
 }
 
 #detail-cluster {
