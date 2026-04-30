@@ -397,11 +397,20 @@ input[type="range"] {
   overflow-wrap: anywhere;
 }
 
+.neighbor-heading {
+  margin-top: 12px;
+  color: #cbbd9e;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .neighbor-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 12px;
+  margin-top: 7px;
 }
 
 .neighbor-chip {

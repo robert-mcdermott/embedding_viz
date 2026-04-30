@@ -368,7 +368,7 @@ function updateDetails(index) {
   const point = atlas.points[index];
   const cluster = atlas.clusters[point.c];
   els.detailWord.textContent = point.w;
-  els.detailCluster.textContent = cluster ? cluster.label : `Cluster ${point.c + 1}`;
+  els.detailCluster.textContent = `Cluster: ${cluster ? cluster.label : `Cluster ${point.c + 1}`}`;
   els.neighborList.innerHTML = '';
 
   for (const [neighborIndex, weight] of point.n.slice(0, 5)) {
@@ -559,7 +559,7 @@ function resetView() {
   selectedLabelActive = false;
   els.selectedLabel.classList.remove('is-visible');
   els.detailWord.textContent = 'none';
-  els.detailCluster.textContent = '...';
+  els.detailCluster.textContent = 'Cluster: ...';
   els.neighborList.innerHTML = '';
   targetGoal = new THREE.Vector3(0, 0, 0);
   cameraGoal = DEFAULT_CAMERA.clone();
@@ -577,7 +577,7 @@ function clearFocus() {
   els.search.value = '';
   renderSearchResults();
   els.detailWord.textContent = 'none';
-  els.detailCluster.textContent = '...';
+  els.detailCluster.textContent = 'Cluster: ...';
   els.neighborList.innerHTML = '';
 }
 
