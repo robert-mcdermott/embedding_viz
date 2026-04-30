@@ -406,17 +406,13 @@ function updateEdges(index, isHover = false) {
   const origin = new THREE.Vector3(point.x, point.y, point.z);
   const linePositions = [];
   const lineColors = [];
-  const originColor = new THREE.Color('#ffffff');
-  const clusterColor = new THREE.Color(atlas.clusters[point.c]?.color ?? '#ffffff');
+  const originColor = new THREE.Color(atlas.clusters[point.c]?.color ?? '#ffffff');
   const neighborLimit = isHover ? 4 : 6;
 
-  for (const [neighborIndex, weight] of point.n.slice(0, neighborLimit)) {
+  for (const [neighborIndex] of point.n.slice(0, neighborLimit)) {
     const neighbor = atlas.points[neighborIndex];
     const target = new THREE.Vector3(neighbor.x, neighbor.y, neighbor.z);
-    const lift = origin.clone().add(target).multiplyScalar(0.5).normalize().multiplyScalar(2.5 + weight * 4);
-    const midpoint = origin.clone().add(target).multiplyScalar(0.5).add(lift);
-    addSegment(linePositions, lineColors, origin, midpoint, originColor, clusterColor);
-    addSegment(linePositions, lineColors, midpoint, target, clusterColor, new THREE.Color(atlas.clusters[neighbor.c]?.color ?? '#ffffff'));
+    addSegment(linePositions, lineColors, origin, target, originColor, new THREE.Color(atlas.clusters[neighbor.c]?.color ?? '#ffffff'));
   }
 
   const geometry = new THREE.BufferGeometry();
