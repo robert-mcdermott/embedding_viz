@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050505" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Embedding Atlas</title>
+    <script type="module" crossorigin src="/assets/index-KX1Go2W_.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BP-rM4-P.css">
+  </head>
+  <body>
+    <main id="app">
+      <div id="scene-host" aria-label="3D semantic embedding point cloud"></div>
+
+      <section class="hud hud-primary" aria-label="Embedding summary">
+        <div>
+          <p id="summary-eyebrow" class="eyebrow">Embedding Atlas</p>
+          <h1 id="atlas-title">Embedding Atlas</h1>
+          <label class="dataset-control">
+            <span>Dataset</span>
+            <select id="dataset-select" aria-label="Dataset"></select>
+          </label>
+        </div>
+        <dl class="metrics">
+          <div>
+            <dt id="item-count-label">Items</dt>
+            <dd id="word-count">...</dd>
+          </div>
+          <div>
+            <dt>Clusters</dt>
+            <dd id="cluster-count">...</dd>
+          </div>
+          <div>
+            <dt>Renderer</dt>
+            <dd id="renderer-mode">...</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="search-panel" aria-label="Embedding search">
+        <label class="search-box">
+          <i data-lucide="search" aria-hidden="true"></i>
+          <input id="word-search" type="search" autocomplete="off" spellcheck="false" placeholder="Find text" />
+        </label>
+        <div id="search-results" class="search-results" role="listbox"></div>
+      </section>
+
+      <nav class="toolbar" aria-label="View controls">
+        <button id="reset-view" class="icon-button" type="button" aria-label="Reset view" title="Reset view">
+          <i data-lucide="rotate-ccw" aria-hidden="true"></i>
+        </button>
+        <button id="toggle-motion" class="icon-button" type="button" aria-label="Pause motion" title="Pause motion">
+          <i data-lucide="pause" aria-hidden="true"></i>
+        </button>
+        <button id="fit-selection" class="icon-button" type="button" aria-label="Frame selected item" title="Frame selected item">
+          <i data-lucide="locate-fixed" aria-hidden="true"></i>
+        </button>
+        <button id="clear-focus" class="icon-button" type="button" aria-label="Clear focus" title="Clear focus">
+          <i data-lucide="x" aria-hidden="true"></i>
+        </button>
+      </nav>
+
+      <section class="control-panel" aria-label="Display controls">
+        <label>
+          <span>Point Size</span>
+          <input id="point-size" type="range" min="0.06" max="0.46" value="0.14" step="0.005" />
+        </label>
+        <label>
+          <span>Glow</span>
+          <input id="glow-size" type="range" min="0" max="1.25" value="0.44" step="0.01" />
+        </label>
+        <label class="switch-control">
+          <span>Links</span>
+          <input id="neighbor-links" type="checkbox" checked />
+          <span class="switch-track" aria-hidden="true">
+            <span class="switch-thumb"></span>
+          </span>
+        </label>
+      </section>
+
+      <aside class="cluster-panel" aria-label="Semantic clusters">
+        <div class="panel-heading">
+          <span>Semantic Clusters</span>
+          <i data-lucide="layers-3" aria-hidden="true"></i>
+        </div>
+        <div id="cluster-list" class="cluster-list"></div>
+      </aside>
+
+      <section id="detail-panel" class="detail-panel" aria-live="polite">
+        <p id="selected-kind-label" class="eyebrow">Selected Item</p>
+        <h2 id="detail-word">none</h2>
+        <p id="detail-cluster" class="cluster-name">Cluster: ...</p>
+        <p id="neighbor-heading" class="neighbor-heading">Nearest related items</p>
+        <div id="neighbor-list" class="neighbor-list"></div>
+      </section>
+
+      <div id="tooltip" class="tooltip" role="status"></div>
+      <div id="selected-label" class="selected-label"></div>
+      <div id="loading" class="loading">
+        <div class="loader-ring"></div>
+        <div>
+          <p>Building atlas</p>
+          <span id="loading-status">Loading dataset</span>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
