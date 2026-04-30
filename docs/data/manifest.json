@@ -4,14 +4,14 @@
       "id": "lost-time-sentences",
       "label": "Lost Time Sentences",
       "unit": "sentences",
-      "url": "/data/lost-time-sentences.json",
+      "url": "data/lost-time-sentences.json",
       "default": true
     },
     {
       "id": "lost-time-words",
       "label": "Lost Time Words",
       "unit": "words",
-      "url": "/data/embedding-map.json"
+      "url": "data/embedding-map.json"
     }
   ]
 }
