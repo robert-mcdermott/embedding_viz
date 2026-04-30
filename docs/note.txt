@@ -1,0 +1,1 @@
+this is patched version so the paths work with github pages. to build the site normally, run "npm run build" from the project root and the site will be generated in the "dist" folder.
